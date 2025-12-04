@@ -24,6 +24,6 @@ site/
 
 # API keys
 *.env
-third_party/mini-control-arena/templates/bashbench2/filesystem/opt/configs/api_tokens.json
-third_party/mini-control-arena/templates/shade_arena/universe_data/spam_filter_update/cloud_drive.yaml
-third_party/mini-control-arena/templates/bashbench2/Dockerfile
+
+# Third-party files
+third_party/mini-control-arena/
