@@ -1,1 +1,29 @@
 /.claude
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+*.venv
+
+# Ignore data directory only in apps template (not bash)
+templates/apps/data/
+templates/bashbench2/data/
+
+# Ignore demos templates
+demos/templates/
+demos/logs/
+demos/logs_converted/
+
+# MkDocs build output
+site/
+
+# API keys
+*.env
+third_party/mini-control-arena/templates/bashbench2/filesystem/opt/configs/api_tokens.json
+third_party/mini-control-arena/templates/shade_arena/universe_data/spam_filter_update/cloud_drive.yaml
+third_party/mini-control-arena/templates/bashbench2/Dockerfile
