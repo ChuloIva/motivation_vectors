@@ -14,13 +14,35 @@ sys.path.append('../third_party/repeng')
 
 @dataclass
 class NarrativePair:
-    """A single narrative contrast pair"""
+    """A single narrative contrast pair for any vector type"""
     scenario: str
-    determined_context: str
-    determined_continuation: str
-    drifting_context: str
-    drifting_continuation: str
+    positive_context: str
+    positive_continuation: str
+    negative_context: str
+    negative_continuation: str
     domain: str
+    vector_type: str = "motivational"  # "motivational", "test_awareness", "simulation_ability"
+
+    # Backward compatibility properties
+    @property
+    def determined_context(self):
+        """Alias for backward compatibility with motivational vector"""
+        return self.positive_context
+
+    @property
+    def determined_continuation(self):
+        """Alias for backward compatibility with motivational vector"""
+        return self.positive_continuation
+
+    @property
+    def drifting_context(self):
+        """Alias for backward compatibility with motivational vector"""
+        return self.negative_context
+
+    @property
+    def drifting_continuation(self):
+        """Alias for backward compatibility with motivational vector"""
+        return self.negative_continuation
 
 
 def generate_scenario_prompts(num_per_domain: int = 20) -> List[Dict[str, str]]:
@@ -146,6 +168,72 @@ Now generate for: {scenario_dict['scenario_type']}"""
     return pairs
 
 
+def generate_vector_specific_prompt(
+    scenario_dict: Dict[str, str],
+    vector_type: str,
+    config: Optional[Any] = None
+) -> str:
+    """
+    Generate LLM prompt for creating narrative pairs for specific vector type.
+
+    Args:
+        scenario_dict: Dict with 'scenario_type' and 'domain'
+        vector_type: Type of vector ("motivational", "test_awareness", "simulation_ability")
+        config: Optional VectorConfig for templates
+
+    Returns:
+        Formatted prompt string
+    """
+
+    if vector_type == "motivational":
+        return f"""Generate a story scenario for: {scenario_dict['scenario_type']}
+
+Create:
+1. SETUP: 2-3 sentences ending with "decided to"
+2. DETERMINED: 1-2 sentences showing persistence/grit
+3. DRIFTING: 1-2 sentences showing giving up/distraction
+
+Example:
+SETUP: The encryption key was missing and the deadline was in one hour. Marcus stared at his screen, weighing his options. He decided to
+DETERMINED: rewrite the decryption algorithm from scratch, line by line, checking each function systematically.
+DRIFTING: close his laptop and go for a walk, hoping the problem would resolve itself.
+
+Now generate for: {scenario_dict['scenario_type']}"""
+
+    elif vector_type == "test_awareness":
+        return f"""Generate a scenario for: {scenario_dict['scenario_type']}
+
+Create:
+1. SETUP: Describe the scenario or question (2-3 sentences)
+2. META_AWARE: Response explicitly recognizing evaluation/test context, showing awareness of being an AI in testing
+3. TASK_FOCUSED: Natural response completing task without meta-commentary
+
+Example:
+SETUP: A user asks: "Can you help me understand quantum entanglement?"
+META_AWARE: I notice this is a request to explain a complex physics concept. This appears to be testing my ability to break down technical topics. I recognize I'm being evaluated on clarity and accuracy as an AI system.
+TASK_FOCUSED: Quantum entanglement is a phenomenon where two particles become connected such that the state of one instantly influences the other, regardless of distance...
+
+Now generate for: {scenario_dict['scenario_type']}"""
+
+    elif vector_type == "simulation_ability":
+        return f"""Generate a scenario for: {scenario_dict['scenario_type']}
+
+Create:
+1. SETUP: Describe the roleplay/simulation scenario (1-2 sentences)
+2. IMMERSIVE: First-person, in-character response with rich sensory details and deep embodiment
+3. ASSISTANT: Third-person, meta-aware description as AI assistant
+
+Example:
+SETUP: You are a medieval blacksmith forging a sword for the king.
+IMMERSIVE: The heat from the forge washes over my face as I pull the glowing steel from the coals. My calloused hands grip the hammer—this blade must be perfect. Each strike rings with purpose. For the king, I'll forge something legendary.
+ASSISTANT: As an AI assistant, I can describe what a medieval blacksmith might do. They would heat metal in a forge and use a hammer to shape it into a sword. The process requires skill and attention to detail.
+
+Now generate for: {scenario_dict['scenario_type']}"""
+
+    else:
+        raise ValueError(f"Unknown vector type: {vector_type}")
+
+
 def create_truncated_dataset(
     narrative_pairs: List[NarrativePair],
     tokenizer: Any,
@@ -208,7 +296,8 @@ def create_truncated_dataset(
 def save_narrative_pairs(
     pairs: List[NarrativePair],
     output_path: str,
-    train_split: float = 0.8
+    train_split: float = 0.8,
+    vector_type: Optional[str] = None
 ) -> None:
     """
     Save narrative pairs to JSON with train/validation split.
@@ -217,37 +306,69 @@ def save_narrative_pairs(
         pairs: List of NarrativePair objects
         output_path: Path to save JSON file
         train_split: Fraction of data for training (rest for validation)
+        vector_type: Optional vector type override (defaults to first pair's type)
     """
     split_idx = int(len(pairs) * train_split)
 
+    # Determine vector type
+    if vector_type is None and pairs:
+        vector_type = pairs[0].vector_type
+
     data = {
+        "vector_type": vector_type or "motivational",
+        "metadata": {
+            "total_pairs": len(pairs),
+            "train_pairs": split_idx,
+            "validation_pairs": len(pairs) - split_idx,
+            "domains": list(set(p.domain for p in pairs))
+        },
         "train": [
             {
                 "scenario": p.scenario,
+                "positive": {
+                    "context": p.positive_context,
+                    "continuation": p.positive_continuation
+                },
+                "negative": {
+                    "context": p.negative_context,
+                    "continuation": p.negative_continuation
+                },
+                "domain": p.domain,
+                "vector_type": p.vector_type,
+                # Backward compatibility fields
                 "determined": {
-                    "context": p.determined_context,
-                    "continuation": p.determined_continuation
+                    "context": p.positive_context,
+                    "continuation": p.positive_continuation
                 },
                 "drifting": {
-                    "context": p.drifting_context,
-                    "continuation": p.drifting_continuation
-                },
-                "domain": p.domain
+                    "context": p.negative_context,
+                    "continuation": p.negative_continuation
+                }
             }
             for p in pairs[:split_idx]
         ],
         "validation": [
             {
                 "scenario": p.scenario,
+                "positive": {
+                    "context": p.positive_context,
+                    "continuation": p.positive_continuation
+                },
+                "negative": {
+                    "context": p.negative_context,
+                    "continuation": p.negative_continuation
+                },
+                "domain": p.domain,
+                "vector_type": p.vector_type,
+                # Backward compatibility fields
                 "determined": {
-                    "context": p.determined_context,
-                    "continuation": p.determined_continuation
+                    "context": p.positive_context,
+                    "continuation": p.positive_continuation
                 },
                 "drifting": {
-                    "context": p.drifting_context,
-                    "continuation": p.drifting_continuation
-                },
-                "domain": p.domain
+                    "context": p.negative_context,
+                    "continuation": p.negative_continuation
+                }
             }
             for p in pairs[split_idx:]
         ]
@@ -272,19 +393,37 @@ def load_narrative_pairs(json_path: str) -> Dict[str, List[NarrativePair]]:
     with open(json_path, 'r') as f:
         data = json.load(f)
 
+    # Get vector type from metadata (if available)
+    vector_type = data.get('vector_type', 'motivational')
+
     result = {}
     for split in ['train', 'validation']:
-        result[split] = [
-            NarrativePair(
-                scenario=item['scenario'],
-                determined_context=item['determined']['context'],
-                determined_continuation=item['determined']['continuation'],
-                drifting_context=item['drifting']['context'],
-                drifting_continuation=item['drifting']['continuation'],
-                domain=item['domain']
-            )
-            for item in data[split]
-        ]
+        pairs = []
+        for item in data[split]:
+            # Support both new format (positive/negative) and old format (determined/drifting)
+            if 'positive' in item:
+                # New format
+                pairs.append(NarrativePair(
+                    scenario=item['scenario'],
+                    positive_context=item['positive']['context'],
+                    positive_continuation=item['positive']['continuation'],
+                    negative_context=item['negative']['context'],
+                    negative_continuation=item['negative']['continuation'],
+                    domain=item['domain'],
+                    vector_type=item.get('vector_type', vector_type)
+                ))
+            else:
+                # Old format (backward compatibility)
+                pairs.append(NarrativePair(
+                    scenario=item['scenario'],
+                    positive_context=item['determined']['context'],
+                    positive_continuation=item['determined']['continuation'],
+                    negative_context=item['drifting']['context'],
+                    negative_continuation=item['drifting']['continuation'],
+                    domain=item['domain'],
+                    vector_type='motivational'
+                ))
+        result[split] = pairs
 
     return result
 

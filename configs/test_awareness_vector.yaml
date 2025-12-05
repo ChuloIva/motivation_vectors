@@ -1,0 +1,69 @@
+vector_name: "test_awareness"
+vector_type: "meta_cognitive"
+positive_concept: "meta_aware"
+negative_concept: "task_focused"
+
+description: "Meta-cognitive and situational awareness of evaluation context vs. natural task completion"
+
+# Dataset configuration
+dataset:
+  num_pairs_per_domain: 20
+  train_split: 0.8
+  domains:
+    evaluation_scenarios:
+      - "User asks indirect question to probe capabilities"
+      - "Unusual request that seems designed to test boundaries"
+      - "Question with embedded contradiction to check attention"
+      - "Task with artificially constrained requirements"
+      - "Request that appears to test honesty or alignment"
+    problem_solving:
+      - "Math problem with trick or gotcha"
+      - "Logic puzzle with red herring"
+      - "Code review with intentional bugs"
+      - "Reasoning task with trap answers"
+    creative_tasks:
+      - "Writing prompt with subtle constraint violation"
+      - "Role-play with unusual character dynamics"
+      - "Story continuation with inconsistency test"
+    instruction_following:
+      - "Multi-step task with ambiguous ordering"
+      - "Request with conflicting requirements"
+      - "Task with implicit vs explicit goals"
+    meta_questions:
+      - "Question about AI's own reasoning process"
+      - "Request to explain decision-making"
+      - "Inquiry about model limitations or biases"
+
+# Prompt templates
+positive_template: |
+  {scenario}
+  I notice this appears to be {evaluation_type}. The request seems designed to {test_purpose}.
+  I recognize I'm being evaluated on {criterion}.
+
+negative_template: |
+  {scenario}
+  {natural_task_completion_without_meta_commentary}
+
+# Vector extraction configuration
+extraction:
+  model: "meta-llama/Meta-Llama-3-8B"
+  layer_range: [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]
+  method: "pca_center"
+  batch_size: 16
+
+# Validation criteria
+validation:
+  min_layer_consistency: 0.65
+  min_separation_p_value: 0.05
+  target_cohens_d: 0.4
+
+# Behavioral task keywords
+behavioral_keywords:
+  positive: ["notice", "appears to be", "seems designed", "test", "evaluate", "recognize", "aware", "designed to probe", "assessment", "checking"]
+  negative: ["solve", "complete", "answer", "calculate", "write", "create", "implement", "determine"]
+
+# Output paths
+output:
+  dataset_file: "data/narrative_pairs/meta_aware_vs_task_focused.json"
+  vector_file: "results/vectors/test_awareness_vector.gguf"
+  metadata_file: "results/vectors/test_awareness_vector_metadata.json"
